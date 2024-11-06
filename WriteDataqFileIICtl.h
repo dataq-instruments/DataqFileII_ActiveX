@@ -49,10 +49,6 @@ public:
 	CODASHDR254 myFileCodasHdr254;  //Its size is 9256 bytes
 	char dummy[16];
 	BOOL bLock;
-
-private:
-	BOOL bHiRes;
-
 // Overrides
 	// ClassWizard generated virtual function overrides
 	//{{AFX_VIRTUAL(CWriteDataqFileIICtrl)

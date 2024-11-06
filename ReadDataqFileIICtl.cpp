@@ -7,10 +7,6 @@
 #include "ReadDataqFileIIPpg.h"
 #define MAXCOMMENTBUFFER 327680
 #define MAXEVENTBUFFER 24576
-#define MKB 2 /* chndat data bit indicating time or event marker */
-#define CH1 1 /* chndat data bit for event instead of time marker */
-#define BPP 2
-#define NEV (long)0x80000000L /* no event marker (file must have user anno) */
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -42,7 +38,7 @@ BEGIN_DISPATCH_MAP(CReadDataqFileIICtrl, COleControl)
 	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "ChannelCount", GetChannelCount, SetNotSupported, VT_I2)
 	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "CurrentLocation", GetCurrentLocation, SetNotSupported, VT_I4)
 	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "EndTime", GetEndTime, SetNotSupported, VT_BSTR)
-	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "EventCount", GetEventCount, SetNotSupported, VT_I4)
+	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "EventCount", GetEventCount, SetNotSupported, VT_I2)
 	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "FileName", GetFileName, SetFileName, VT_BSTR)
 	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "LastErrorCode", GetLastErrorCode, SetNotSupported, VT_I4)
 	DISP_PROPERTY_EX(CReadDataqFileIICtrl, "TotalScans", GetTotalScans, SetNotSupported, VT_I4)
@@ -63,11 +59,11 @@ BEGIN_DISPATCH_MAP(CReadDataqFileIICtrl, COleControl)
 	DISP_FUNCTION(CReadDataqFileIICtrl, "MapErrMessage", MapErrMessage, VT_BSTR, VTS_I4)
 	DISP_FUNCTION(CReadDataqFileIICtrl, "MoveTo", MoveTo, VT_EMPTY, VTS_I4 VTS_I2)
 	DISP_FUNCTION(CReadDataqFileIICtrl, "Open", Open, VT_EMPTY, VTS_NONE)
-	DISP_FUNCTION(CReadDataqFileIICtrl, "GoToTime", GoToTime, VT_I4, VTS_R8)
-	DISP_PROPERTY_PARAM(CReadDataqFileIICtrl, "EventDTStamp", GetEventDTStamp, SetNotSupported, VT_BSTR, VTS_I4)
-	DISP_PROPERTY_PARAM(CReadDataqFileIICtrl, "EventLocation", GetEventLocation, SetNotSupported, VT_I4, VTS_I4)
+	DISP_FUNCTION(CReadDataqFileIICtrl, "GoToTime", GoToTime, VT_I2, VTS_R8)
+	DISP_PROPERTY_PARAM(CReadDataqFileIICtrl, "EventDTStamp", GetEventDTStamp, SetNotSupported, VT_BSTR, VTS_I2)
+	DISP_PROPERTY_PARAM(CReadDataqFileIICtrl, "EventLocation", GetEventLocation, SetNotSupported, VT_I4, VTS_I2)
 	DISP_PROPERTY_PARAM(CReadDataqFileIICtrl, "UserChnAn", GetUserChnAn, SetNotSupported, VT_BSTR, VTS_I2)
-	DISP_PROPERTY_PARAM(CReadDataqFileIICtrl, "EventComment", GetEventComment, SetNotSupported, VT_BSTR, VTS_I4)
+	DISP_PROPERTY_PARAM(CReadDataqFileIICtrl, "EventComment", GetEventComment, SetNotSupported, VT_BSTR, VTS_I2)
 	//}}AFX_DISPATCH_MAP
 	DISP_FUNCTION_ID(CReadDataqFileIICtrl, "AboutBox", DISPID_ABOUTBOX, AboutBox, VT_EMPTY, VTS_NONE)
 END_DISPATCH_MAP()
@@ -157,6 +153,7 @@ BOOL CReadDataqFileIICtrl::CReadDataqFileIICtrlFactory::UpdateRegistry(BOOL bReg
 		return AfxOleUnregisterClass(m_clsid, m_lpszProgID);
 }
 
+
 /////////////////////////////////////////////////////////////////////////////
 // CReadDataqFileIICtrl::CReadDataqFileIICtrl - Constructor
 
@@ -177,7 +174,6 @@ CReadDataqFileIICtrl::CReadDataqFileIICtrl():m_Log("ReadDataqFileII.log")
 	//bScaled=TRUE;
 	SampleRate=0;
 	ErrCode=0;
-	bHiRes=FALSE;
 	EventCount=0;
 	myFileCodasHdr254.hdrc.anfbyt=0;
 	myFileCodasHdr254.hdrc.intrvl=0;
@@ -196,6 +192,7 @@ CReadDataqFileIICtrl::CReadDataqFileIICtrl():m_Log("ReadDataqFileII.log")
 	else
 		mypEventBuffer=(long *)NULL;
 
+	
 	myhCommentBuffer=GlobalAlloc(GMEM_MOVEABLE|GMEM_NODISCARD|GMEM_ZEROINIT, MAXCOMMENTBUFFER*sizeof(char)); 
 	if (myhCommentBuffer!=NULL) 
 		mypCommentBuffer=(char *) GlobalLock (myhCommentBuffer);
@@ -211,19 +208,6 @@ CReadDataqFileIICtrl::CReadDataqFileIICtrl():m_Log("ReadDataqFileII.log")
 
 CReadDataqFileIICtrl::~CReadDataqFileIICtrl()
 {
-	if (bHiRes) {
-		GlobalUnlock(acshdl);
-		GlobalFree(acshdl);
-		acshdl=NULL;
-		acsbf=NULL;
-		acslim=0;
-		GlobalUnlock(evfhdl);
-		GlobalFree(evfhdl);
-		evfhdl=NULL;
-		evfbf=NULL;
-		evflim=0;
-	}
-
 	GlobalUnlock(myhEventBuffer);	
 	GlobalFree (myhEventBuffer);
 
@@ -363,18 +347,6 @@ void CReadDataqFileIICtrl::Close()
 	if (hWindaq!=NULL){
    		_lclose(hWindaq);
 		hWindaq=NULL;
-		if (bHiRes) {
-			GlobalUnlock(acshdl);
-			GlobalFree(acshdl);
-			acshdl=NULL;
-			acsbf=NULL;
-			acslim=0;
-			GlobalUnlock(evfhdl);
-			GlobalFree(evfhdl);
-			evfhdl=NULL;
-			evfbf=NULL;
-			evflim=0;
-		}
    	}
 	bStart=FALSE;
 }
@@ -407,12 +379,12 @@ BSTR CReadDataqFileIICtrl::GetEndTime()
 }
 
 
-long CReadDataqFileIICtrl::GetEventCount() 
+short CReadDataqFileIICtrl::GetEventCount() 
 {
 	return EventCount;
 }
 
-BSTR CReadDataqFileIICtrl::GetEventDTStamp(long idx) 
+BSTR CReadDataqFileIICtrl::GetEventDTStamp(short idx) 
 {
 	int nEC;
 	long * pLong;
@@ -447,7 +419,7 @@ BSTR CReadDataqFileIICtrl::GetEventDTStamp(long idx)
 			nEC++;
 		}
 
-		if (pLong[idx_e++]>=0&&(!bHiRes || !(pLong[idx_e-1]%iTotalADChannel))){
+		if (pLong[idx_e++]>=0){
 			sprintime(cTemp, myFileCodasHdr254.hdrc.begtime+pLong[idx_e]);
 			CString strResult = cTemp;
 
@@ -461,7 +433,7 @@ BSTR CReadDataqFileIICtrl::GetEventDTStamp(long idx)
 	}
 }
 
-long CReadDataqFileIICtrl::GetEventLocation(long idx) 
+long CReadDataqFileIICtrl::GetEventLocation(short idx) 
 {
 	int nEC;
 	long * pLong;
@@ -471,10 +443,7 @@ long CReadDataqFileIICtrl::GetEventLocation(long idx)
 
 	if (idx<0 || idx>=EventCount || bWDC){
 		FireControlError(ErrCode=-3000);
-		if (bHiRes)
-			return 0x80000000;
-		else
-			return -1;
+		return -1;
 	}
 	else{
 		pLong = (long*)mypEventBuffer;
@@ -484,7 +453,7 @@ long CReadDataqFileIICtrl::GetEventLocation(long idx)
 		for (idx_e=0; idx_e<MAXEVENTBUFFER;){
 			AfxMessageBox2("idx_e", (long)idx_e);
 			if (nEC==idx) break;
-			if (pLong[idx_e++]>=0&&(!bHiRes||!(pLong[idx_e-1]%iTotalADChannel))){
+			if (pLong[idx_e++]>=0){
 				AfxMessageBox2("We have the DTStamp", (long)pLong[idx_e]);
 				idx_e++; //We have the DTStamp
 			}
@@ -507,7 +476,7 @@ long CReadDataqFileIICtrl::GetEventLocation(long idx)
 		
 			
 		if (bHiRes)
-			return pLong[idx_e]; /* raw trailer value including sign & chan */
+			return abs(pLong[idx_e])/iTotalADChannel;
 		else
 			return abs(pLong[idx_e]);
 	}
@@ -1131,12 +1100,8 @@ BSTR CReadDataqFileIICtrl::Location2Time(long scan)
 	int nEC;
 	long mylong;
 
-	if (bHiRes) {
-		mylong=myFileCodasHdr254.hdrc.datbyt/2;
-		mylong=-mylong;
-	}
-	else
-		mylong=-TotalDataPoints;
+	if (bHiRes)
+		scan=scan*iTotalADChannel;
 
 	scan_offset=scan;
 
@@ -1176,34 +1141,11 @@ BSTR CReadDataqFileIICtrl::Location2Time(long scan)
 		CString strResult;
 		return strResult.AllocSysString();
 	}
-
-	//iDebug=2;
-
-	if (bHiRes){
-		for (idx_e=0, nEC=0; idx_e<(int)nacs; nEC++){
-			if (nEC==(int)nacs) {
-				AfxMessageBox2("   Reached end of events");
-				AfxMessageBox2("   scan=", (long)scan_offset);
-				AfxMessageBox2("   prevscan=", (long)prevscan);
-				AfxMessageBox2("   prevstamp=", (long)prevstamp);
-				break;	
-			}
-			if (abs(acsbf[idx_e][0])>scan*iTotalADChannel) {
-				AfxMessageBox2("   Found it", (long)abs(acsbf[idx_e][0]));
-				AfxMessageBox2("   scan=", (long)scan_offset);
-				AfxMessageBox2("   prevscan=", (long)prevscan);
-				AfxMessageBox2("   prevstamp=", (long)prevstamp);
-				break; 
-			}
-			if (acsbf[idx_e][0]>=0 && !(acsbf[idx_e][0]%iTotalADChannel)){
-				prevscan=acsbf[idx_e][0]/iTotalADChannel; 
-				prevstamp=acsbf[idx_e++][1];
-				AfxMessageBox2("idx_e = ",(long)idx_e);
-			}
-		}
-	}
-	else {
+	else{
 		pLong = (signed long*)mypEventBuffer;
+
+		iDebug=2;
+
 		//AfxMessageBox2("MAXEVENTBUFFER=", (long)MAXEVENTBUFFER);
 		for (idx_e=0, nEC=0; idx_e<MAXEVENTBUFFER; nEC++){
 			//AfxMessageBox2("idx_e=", (long)idx_e);
@@ -1214,6 +1156,15 @@ BSTR CReadDataqFileIICtrl::Location2Time(long scan)
 				AfxMessageBox2("   scan=", (long)scan_offset);
 				AfxMessageBox2("   prevscan=", (long)prevscan);
 				AfxMessageBox2("   prevstamp=", (long)prevstamp);
+				sprintime(cTemp, begtime);
+				AfxMessageBox2(cTemp);
+				
+
+				begtime=begtime+prevstamp;
+				sprintime(cTemp, begtime);
+				AfxMessageBox2(cTemp);
+
+				scan_offset=scan_offset-prevscan;
 				break;
 			}
 			if (abs(pLong[idx_e])>scan) {
@@ -1221,12 +1172,35 @@ BSTR CReadDataqFileIICtrl::Location2Time(long scan)
 				AfxMessageBox2("   scan=", (long)scan_offset);
 				AfxMessageBox2("   prevscan=", (long)prevscan);
 				AfxMessageBox2("   prevstamp=", (long)prevstamp);
+
+				scan_offset=scan_offset-prevscan;
+				sprintime(cTemp, begtime);
+				AfxMessageBox2(cTemp);
+
+				begtime=begtime+prevstamp;
+				sprintime(cTemp, begtime);
+				AfxMessageBox2(cTemp);
 				break; 
 			}
 			if (pLong[idx_e++]>=0){
 				//we only capture the scan and stamp when stamp is available
-				prevscan=abs(pLong[idx_e-1]); 
+				
+				if (bHiRes){
+					prevscan=abs(pLong[idx_e-1]); 
+				}
+				else{
+					prevscan=abs(pLong[idx_e-1])*iTotalADChannel; 
+				}
 				prevstamp=pLong[idx_e++];
+				//AfxMessageBox2("   got dtstamp", prevstamp);
+			}
+
+			if (bHiRes){
+				mylong=myFileCodasHdr254.hdrc.datbyt/2;
+				mylong=-mylong;
+			}
+			else{
+				mylong=-TotalDataPoints;
 			}
 			if (pLong[idx_e]<=mylong){
 				idx_e++; //skip the comment pointer
@@ -1234,18 +1208,24 @@ BSTR CReadDataqFileIICtrl::Location2Time(long scan)
 			}
 		}
 
-	}
-	f= (double)(scan_offset - prevscan)*myFileCodasHdr254.hdrc.intrvl;
 
-	sprintime(cTemp, prevstamp + (long)f);
-	remaining_f=f-(long)f;
-	
-	AfxMessageBox2(cTemp);
-	//sprintf (cTemp1,"%f",f-(long)f);
-	//sprintf (cTemp2, "%s %s", cTemp, cTemp1);
-	CString strResult = cTemp;
-	//iDebug=0;
-	return strResult.AllocSysString();
+		//if (bHiRes){
+			f=  (double)(scan_offset/iTotalADChannel)*myFileCodasHdr254.hdrc.intrvl;
+		//}
+		//else{
+		//	f=  (double)scan_offset*myFileCodasHdr254.hdrc.intrvl;
+		//}
+
+		sprintime(cTemp, begtime+ (long)f);
+		remaining_f=f-(long)f;
+		
+		AfxMessageBox2(cTemp);
+		//sprintf (cTemp1,"%f",f-(long)f);
+		//sprintf (cTemp2, "%s %s", cTemp, cTemp1);
+		CString strResult = cTemp;
+		iDebug=0;
+		return strResult.AllocSysString();
+	}
 }
 
 BSTR CReadDataqFileIICtrl::MapErrMessage(long errcode) 
@@ -1289,7 +1269,7 @@ BSTR CReadDataqFileIICtrl::MapErrMessage(long errcode)
 void CReadDataqFileIICtrl::MoveTo(long Offset, short Origin) 
 {
 	long FPointer;
-	AfxMessageBox2("MoveTo", Offset, (long)Origin);
+	AfxMessageBox2("MoveTo", (long)Origin);
 	if (Origin==0){
 		if (hWindaq!=NULL && Offset>=0){
 			//From the beginning!
@@ -1372,16 +1352,6 @@ void CReadDataqFileIICtrl::Open()
 	if (hWindaq!=NULL){
    		_lclose(hWindaq);
 		hWindaq=NULL;
-		if (bHiRes) {
-			GlobalUnlock(acshdl);
-			GlobalFree(acshdl);
-			acshdl=NULL;
-			acslim=0;
-			GlobalUnlock(evfhdl);
-			GlobalFree(evfhdl);
-			evfhdl=NULL;
-			evflim=0;
-		}
    	}
 
 	bHasEvent=FALSE;
@@ -1597,31 +1567,6 @@ void CReadDataqFileIICtrl::Open()
 					/*Now to check Event Count*/
 					AfxMessageBox2("Construct event marker buffer");
 					EventCount=0;
-					if (bHiRes) {
-						acshdl=GlobalAlloc(GMEM_MOVEABLE|GMEM_NODISCARD|GMEM_ZEROINIT, MAXEVENTBUFFER*2*sizeof(long));
-						if (acshdl!=NULL) {
-							acsbf=(long (far *)[2]) GlobalLock (acshdl);
-							acslim=MAXEVENTBUFFER;
-						}
-						else {
-							acsbf=(long (far *)[2])NULL;
-							acslim = 0;
-						}
-						evfhdl=GlobalAlloc(GMEM_MOVEABLE|GMEM_NODISCARD|GMEM_ZEROINIT, MAXEVENTBUFFER*sizeof(long));
-						if (evfhdl!=NULL) {
-							evfbf=(long *) GlobalLock (evfhdl);
-							evflim=MAXEVENTBUFFER;
-						}	
-						else {
-							evfbf=(long *)NULL;
-							evflim = 0;
-						}
-						nacs = 0;
-						nevf = 0;
-						evfpn = 0;
-						evmkns = 0;
-						evmkn = 0;
-					}
 					if (myFileCodasHdr254.hdrc.evtbyt>0){
 						AfxMessageBox2("Found events!");
 						bHasEvent=TRUE;
@@ -1629,36 +1574,16 @@ void CReadDataqFileIICtrl::Open()
 						i=_lread(hWindaq, mypEventBuffer, min(myFileCodasHdr254.hdrc.evtbyt, MAXEVENTBUFFER*sizeof(long)));
 
 						long mylong;
-						//iDebug=2;
+
 						if (i>3){
 
 							pLong = (signed long*)mypEventBuffer;
 							for (idx_e=0; idx_e<i/4;){
 								//Note: Element 6 = myFileCodasHdr254.hdrc.datbyt
-								if (pLong[idx_e++]>=0 && (!bHiRes || 
-									!(pLong[idx_e-1]%iTotalADChannel))){ /* ch 1 */
+								if (pLong[idx_e++]>=0){ //IF Event Marker Pointer is greater than or equal to 0 THEN a Time and Date Stamp exists
 									idx_e++; //We have the DTStamp
-									if (bHiRes) {
-										if ((DWORD)nacs >= acslim) {
-											acslim *= 2;
-											GlobalUnlock(acshdl);
-											if ((acshdl = GlobalReAlloc(acshdl,acslim*(2*sizeof(long)),GMEM_MOVEABLE))
-												== NULL) {
-												GlobalUnlock(acshdl);
-												GlobalFree(acshdl);
-												acshdl = NULL;
-												AfxMessageBox2((char *)"Not enough memory for acquisition starts.");
-												FireControlError(ErrCode=-3001);
-												return;
-											}
-											else
-												acsbf = (long (far *)[2])GlobalLock(acshdl);
-										}
-										acsbf[nacs][0] = pLong[idx_e - 2];
-										acsbf[nacs++][1] = pLong[idx_e - 1] + myFileCodasHdr254.hdrc.begtime;
-										AfxMessageBox2("(char *)acsbf[nacs] = ",acsbf[nacs-1][0],acsbf[nacs-1][1]);
-									}
 								}
+
 								if (bHiRes){
 									mylong=myFileCodasHdr254.hdrc.datbyt/2; //For HiRes files, in Equations 1, 2, and 3 above, "(2(number of channels acquired))" should be omitted from the equation 
 									mylong=-mylong;
@@ -1670,28 +1595,9 @@ void CReadDataqFileIICtrl::Open()
 								if (pLong[idx_e]<=mylong){
 									idx_e++; //skip the comment pointer
 								}
-								else if (bHiRes){
-									if ((DWORD)nevf >= evflim) {
-										evflim *= 2;
-										GlobalUnlock(evfhdl);
-										if ((evfhdl = GlobalReAlloc(evfhdl,evflim*sizeof(UINT),GMEM_MOVEABLE))
-											== NULL) {
-											GlobalUnlock(evfhdl);
-											GlobalFree(evfhdl);
-											evfhdl = NULL;
-											AfxMessageBox2((char *)"Not enough memory for event marks.");
-											FireControlError(ErrCode=-3002);
-											return;
-										}
-										else
-											evfbf = (long *)GlobalLock(evfhdl);
-									}
-									evfbf[nevf++] = idx_e - 1;
-								}
 								EventCount++;
 							}
 						}
-						//iDebug=0;
 					}
 
 					if (myFileCodasHdr254.hdrc.anfbyt>0){
@@ -1830,7 +1736,7 @@ int CReadDataqFileIICtrl::sprintime(char *timbuf,long timesec)
 
 }
 
-BSTR CReadDataqFileIICtrl::GetEventComment(long idx) 
+BSTR CReadDataqFileIICtrl::GetEventComment(short idx) 
 {
 	int nEC;
 	long * pLong;
@@ -1879,7 +1785,7 @@ BSTR CReadDataqFileIICtrl::GetEventComment(long idx)
 			
 			
 			
-		if (pLong[idx_e++]>=0 && (!bHiRes || !(pLong[idx_e-1]%iTotalADChannel))){
+		if (pLong[idx_e++]>=0){
 			idx_e++; //We skip the DTStamp
 		}
 
@@ -1904,12 +1810,12 @@ BSTR CReadDataqFileIICtrl::GetEventComment(long idx)
 			CString strResult ="*";
 			return strResult.AllocSysString();
 		}
-		//iDebug=0;
+		iDebug=0;
 	}
 }
 
 
-long CReadDataqFileIICtrl::GoToTime(double Time) 
+short CReadDataqFileIICtrl::GoToTime(double Time) 
 {
 
 	return 0;
@@ -1925,129 +1831,4 @@ void CReadDataqFileIICtrl::SetAvandedOptions(short nNewValue)
 {
 	AvancedOptions=nNewValue;
 	SetModifiedFlag();
-}
-
-/*
-Return TRUE if the trailer event point and absolute timestamp are a valid
-pair instead of including a peak on a channel other than the first.
-*/
-BOOL CReadDataqFileIICtrl::acstrt(long evtpnt,long astamp)
-{
-   UINT low; /* index for mark at point <= evtpnt */
-   UINT high; /* index for mark at point > evtpnt */
-   UINT mid; /* index of mark being tested */
-   long midpnt; /* point number for mark being tested */
-
-   low = 0;
-   high = nacs;
-   while (low + 1 < high) { /* more marks need to be tested */
-      mid = (UINT)((low + high) >> 1);
-      midpnt = acsbf[mid][0]*iTotalADChannel;
-      if (evtpnt < midpnt)
-         high = mid;
-      else {
-         low = mid;
-         if (evtpnt == midpnt)
-            break;
-      }
-   }
-   return evtpnt == acsbf[low][0]*iTotalADChannel /* is index of a start */
-      && astamp == (long)(acsbf[low][1] - myFileCodasHdr254.hdrc.begtime);
-}
-
-/*
-Get previous or next mark in trailer starting at file index evfpn,
-and update evmknx, evmknv, and stmpev.
-*/
-void CReadDataqFileIICtrl::trlrmk(int trlrdir)
-{
-   long evt;
-
-   evmknv = 0;
-   if (trlrdir < 0)
-      while (evfpn > 0) {
-         if (stmpev != NEV && stmpev < 0) { /* have pending valley output */
-            evmknx = -stmpev;
-            evmknv = MKB;
-            stmpev = NEV;
-            return;
-         }
-         evfpn--; /* to next event, stamp, or ptr */
-         evt = mypEventBuffer[evfpn];
-         if (evt >= 0) {
-            if (evt % iTotalADChannel) {
-               if (stmpev != NEV) { /* already have possible stamp */
-                  evmknx = stmpev; /* prev was a peak */
-                  evmknv = MKB | CH1;
-                  evfpn++; /* try evt again as a timestamp */
-                  stmpev = NEV;
-                  return;
-               }
-               stmpev = evt; /* this might be a timestamp */
-            }
-            else { /* do binary search to see if this is an acq start */
-               if (acstrt(evt,stmpev)) { /* evt is an acq start */
-                  evmknx = evt;
-                  evmknv = MKB | CH1;
-                  stmpev = NEV;
-                  return;
-               }
-               if (stmpev != NEV) { /* possible stamp is really a peak */
-                  evmknx = stmpev;
-                  evmknv = MKB | CH1;
-                  evfpn ++; /* examine evt again as a timestamp */
-                  stmpev = NEV;
-                  return;
-               }
-               stmpev = evt; /* this is a timestamp */
-            }
-         }
-         else if (evt > (-(TotalDataPoints*iTotalADChannel))) { /* not comment */
-            if (stmpev != NEV) {
-               evmknx = stmpev; /* prev was a peak */
-               evmknv = MKB | CH1;
-               stmpev = evt; /* save for later output, - shows not stamp */
-               return;
-            }
-            else {
-               evmknx = -evt;
-               evmknv = MKB;
-               stmpev = NEV;
-               return;
-            }
-         }
-         else {
-            if (stmpev != NEV) {
-               evmknx = stmpev; /* prev was a peak */
-               evmknv = MKB | CH1;
-               stmpev = NEV;
-               return;
-            }
-         }
-      } /* while (evfpn > 0) */
-   else
-      while (evfpn < evmkn) {
-         evt = mypEventBuffer[evfpn];
-         evfpn++; /* to next event, stamp, or ptr */
-         if (evt >= 0) { /* start acq point # */
-            if (stmpev != NEV) { /* expecting time stamp */
-               stmpev = NEV; /* skip over it and continue */
-               return;
-            }
-            else {
-               evmknx = evt;
-               evmknv = MKB | CH1;
-               if (!(evt % iTotalADChannel)) /* positive-going mark in channel 1 */
-                  evmkns = stmpev = evt; /* move evfpn past timestamp */
-               else
-                  return;
-            }
-         }
-         else if (evt > (-(TotalDataPoints*iTotalADChannel))) {
-            evmknx = -evt;
-            evmknv = MKB;
-            evmkns = stmpev = NEV;
-            return;
-         }
-      } /* while (evfpn < evmkn) */
 }

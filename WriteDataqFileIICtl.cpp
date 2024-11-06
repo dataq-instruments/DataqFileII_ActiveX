@@ -538,7 +538,7 @@ BSTR CWriteDataqFileIICtrl::MapErrMessage(long errcode)
 
 void CWriteDataqFileIICtrl::Open() 
 {
-	int i,j;
+	int i;
 	bLock=FALSE;
 
 	if (hWindaq!=INVALID_HANDLE_VALUE){
@@ -554,14 +554,6 @@ void CWriteDataqFileIICtrl::Open()
 	for (i=0; i<length; i++)
 		WindaqFilePath[i]=cWindaqFilePath[i];
 	WindaqFilePath[i]=0;
-
-	bHiRes = FALSE;
-	for (j = length - 1; j >= 0 && WindaqFilePath[j] != '\\'; j--)
-		if (WindaqFilePath[j] == '.') {
-			if (!stricmp(WindaqFilePath + j,".WDH"))
-				bHiRes = TRUE;
-			break;
-		}
 	
 	hWindaq=CreateFile(WindaqFilePath,
 		GENERIC_WRITE, 
@@ -582,7 +574,6 @@ void CWriteDataqFileIICtrl::Open()
 	mypEventBuffer[EventCntr++]=0;
 	mypEventBuffer[EventCntr++]=0;
 	myFileCodasHdr254.hdrc.evtbyt =8;
-	myFileCodasHdr254.hdrc.data16 = bHiRes;
 	//myFileCodasHdr254.hdrc.lmkeys=2|myFileCodasHdr254.hdrc.lmkeys;
 	//myFileCodasHdr254.hdrc.evtbyt =0;
 	bAllowComment=true;

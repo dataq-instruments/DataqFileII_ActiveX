@@ -29,10 +29,11 @@ private:
 	char ChannelAnnotation [256][40]; 
 	HANDLE myhEventBuffer;
 	long * mypEventBuffer;
-	long EventCount;
+	short EventCount;
 
 	HANDLE myhCommentBuffer;
 	char * mypCommentBuffer;
+
 
 	long lmyWindaqFileHeaderSize;
 	HFILE hWindaq;
@@ -67,23 +68,7 @@ private:
 	BOOL bWdcHasRemoteStorage;
 	BOOL bWdcEventInRemoteStorageChannel;
 	int bWdcRemoteStorageChannelIdx;
-	DWORD acslim;
-	UINT nacs;
-	HANDLE acshdl;
-	long (*acsbf)[2];
-	DWORD evflim;
-	UINT nevf;
-	HANDLE evfhdl;
-	long * evfbf;
-	long evmknx; /* value of pos for next marked point */
-	int evmknv; /* flag bits for next marked point */
-	long stmpev; /* NEV if have no partially-processed timestamp */
-	DWORD evfpn; /* trailer file index of next marked point rel to events */
-	long evmkns; /* value of processed timestamp for use by evftrp */
-	DWORD evmkn; /* # of event marker doublewords in trailer */
 
-	BOOL CReadDataqFileIICtrl::acstrt(long evtpnt,long astamp);
-	void PASCAL trlrmk(int trlrdir);
 	int sprintime(char far *timbuf,long timesec);
 	void AfxMessageBox2(char * s, long a, long b);
 	void AfxMessageBox2(char * s, long a);
@@ -123,7 +108,7 @@ protected:
 	afx_msg short GetChannelCount();
 	afx_msg long GetCurrentLocation();
 	afx_msg BSTR GetEndTime();
-	afx_msg long GetEventCount();
+	afx_msg short GetEventCount();
 	afx_msg BSTR GetFileName();
 	afx_msg void SetFileName(LPCTSTR lpszNewValue);
 	afx_msg long GetLastErrorCode();
@@ -146,11 +131,11 @@ protected:
 	afx_msg BSTR MapErrMessage(long errcode);
 	afx_msg void MoveTo(long Offset, short Origin);
 	afx_msg void Open();
-	afx_msg long GoToTime(double Time);
-	afx_msg BSTR GetEventDTStamp(long idx);
-	afx_msg long GetEventLocation(long idx);
+	afx_msg short GoToTime(double Time);
+	afx_msg BSTR GetEventDTStamp(short idx);
+	afx_msg long GetEventLocation(short idx);
 	afx_msg BSTR GetUserChnAn(short Channel);
-	afx_msg BSTR GetEventComment(long idx);
+	afx_msg BSTR GetEventComment(short idx);
 	//}}AFX_DISPATCH
 	DECLARE_DISPATCH_MAP()
 
