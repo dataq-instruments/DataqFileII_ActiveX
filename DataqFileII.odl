@@ -1,0 +1,144 @@
+// DataqFileII.odl : type library source for ActiveX Control project.
+
+#include <olectl.h>
+#include <idispids.h>
+
+[ uuid(CD5C81BD-214B-4DBF-92BB-A4E9DCBDE0CF), version(1.0),
+  helpfile("DataqXC.chm"),
+  helpstring("DATAQ Instruments DataqFileII Control"),
+  control ]
+library DATAQFILEIILib
+{
+	importlib(STDOLE_TLB);
+	importlib(STDTYPE_TLB);
+
+	typedef enum
+	{
+		[helpstring ("FormatBinary")]	FormatBinary = 0,
+		[helpstring ("FormatScaled")]	FormatScaled = 1,
+	} enumFormat;
+
+	[ uuid(A554DE2C-EBEE-4608-8927-53F9D45EC197),
+	  helpstring("Dispatch interface for ReadDataqFileII Control"), hidden ]
+	dispinterface _DReadDataqFileII
+	{
+		properties:
+			//{{AFX_ODL_PROP(CReadDataqFileIICtrl)
+			[id(1)] BSTR BeginTime;
+			[id(2)] short ChannelCount;
+			[id(3)] long CurrentLocation;
+			[id(4)] BSTR EndTime;
+			[id(5)] short EventCount;
+			[id(6)] BSTR FileName;
+			[id(7)] long LastErrorCode;
+			[id(8)] long TotalScans;
+			[id(9), hidden] long TotalDataPoints;
+			[id(10)] long FileType;
+			[id(11)] double SampleRate;
+			[id(12)] short AvandedOptions;
+			//}}AFX_ODL_PROP
+
+		methods:
+			//{{AFX_ODL_METHOD(CReadDataqFileIICtrl)
+			[id(13)] void Close();
+			[id(14)] BSTR EUTag(short Channel);
+			[id(27), propget] BSTR EventDTStamp(short idx);
+			[id(28), propget] long EventLocation(short idx);
+			[id(15)] VARIANT GetData(long Count, enumFormat Method);
+			[id(16)] void GetDataEx(double* Buffer, long Count);
+			[id(17)] long GetDataExB(short* Buffer, long Count);
+			[id(18)] double GetIntrcpt(short Index);
+			[id(19)] double GetSlope(short Index);
+			[id(20)] void GoToEventMarker(long Event, short Channel);
+			[id(21)] void GoToMark(long Mark, short Channel);
+			[id(22)] BSTR Location2Time(long scan);
+			[id(23)] BSTR MapErrMessage(long errcode);
+			[id(24)] void MoveTo(long Offset, short Origin);
+			[id(25)] void Open();
+			[id(29), propget] BSTR UserChnAn(short Channel);
+			[id(30), propget] BSTR EventComment(short idx);
+			[id(26), hidden] short GoToTime(double Time);
+			//}}AFX_ODL_METHOD
+
+			[id(DISPID_ABOUTBOX)] void AboutBox();
+	};
+
+	[ uuid(145CE69F-CD75-4EF7-B84A-CCB5845378A8),
+	  helpstring("Event interface for ReadDataqFileII Control") ]
+	dispinterface _DReadDataqFileIIEvents
+	{
+		properties:
+			//  Event interface has no properties
+
+		methods:
+			//{{AFX_ODL_EVENT(CReadDataqFileIICtrl)
+			[id(1)] void ControlError(long Code);
+			[id(2)] void EndOfFile();
+			[id(3)] void FileError(long Code);
+			//}}AFX_ODL_EVENT
+	};
+
+	[ uuid(0FEDAB90-0783-46D5-8E45-0FC44B46A0B9),
+	  helpstring("ReadDataqFileII Control"), control ]
+	coclass ReadDataqFileII
+	{
+		[default] dispinterface _DReadDataqFileII;
+		[default, source] dispinterface _DReadDataqFileIIEvents;
+	};
+
+	[ uuid(D394116C-DA78-45FD-A1E9-58A3EC1B6EBE),
+	  helpstring("Dispatch interface for WriteDataqFileII Control"), hidden ]
+	dispinterface _DWriteDataqFileII
+	{
+		properties:
+			//{{AFX_ODL_PROP(CWriteDataqFileIICtrl)
+			[id(1)] short ChannelCount;
+			[id(2)] BSTR FileName;
+			[id(3)] double SampleRate;
+			//}}AFX_ODL_PROP
+
+		methods:
+			//{{AFX_ODL_METHOD(CWriteDataqFileIICtrl)
+			[id(4), hidden] short AddComment(BSTR Comment);
+			[id(5)] void Close();
+			[id(6)] void EUCal(double Max, double Min, short Index);
+			[id(7)] void EUTag(BSTR Unit, short Index);
+			[id(8), hidden] short InsertEventMarker(BOOL TimeStamp);
+			[id(9)] BSTR MapErrMessage(long errcode);
+			[id(10)] void Open();
+			[id(11)] void SaveData(VARIANT Data);
+			[id(12)] void SaveDataEx(short* Buffer, long Total);
+			[id(13), propget] BSTR UserChnAn(short Chn);
+			[id(13), propput] void UserChnAn(short Chn, BSTR lpszNewValue);
+			//}}AFX_ODL_METHOD
+
+			[id(DISPID_ABOUTBOX)] void AboutBox();
+	};
+
+	[ uuid(EA13D939-CCE5-4112-AC5F-28DD2E16D675),
+	  helpstring("Event interface for WriteDataqFileII Control") ]
+	dispinterface _DWriteDataqFileIIEvents
+	{
+		properties:
+			//  Event interface has no properties
+
+		methods:
+			//{{AFX_ODL_EVENT(CWriteDataqFileIICtrl)
+			[id(1)] void ControlError(short Code);
+			[id(2)] void DataError(long Code);
+			[id(3)] void FileError(long Code);
+			//}}AFX_ODL_EVENT
+	};
+
+	[ uuid(4054EB5A-FB35-496C-B1F3-E4B05848492C),
+	  helpstring("WriteDataqFileII Control"), control ]
+	coclass WriteDataqFileII
+	{
+		[default] dispinterface _DWriteDataqFileII;
+		[default, source] dispinterface _DWriteDataqFileIIEvents;
+	};
+
+
+	//{{AFX_APPEND_ODL}}
+	//}}AFX_APPEND_ODL}}
+};
